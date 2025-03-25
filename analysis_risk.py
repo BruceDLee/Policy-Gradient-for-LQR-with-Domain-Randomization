@@ -2,7 +2,7 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.linalg as la
-with open('stabilization_results_1-100.pkl', 'rb') as f:
+with open('stabilization_results_risk_10.pkl', 'rb') as f:
   results = pickle.load(f)
 
 all_samples_Ks = results['all_samples_Ks']
@@ -149,7 +149,6 @@ plt.xticks(fontsize=14)
 plt.yticks(fontsize=14)
 plt.ylim((0, 30))
 
-
 plt.subplot(1, 3, 2)
 
 plt.plot(np.median(all_Jsa_10_errors, axis=0), label='M=10')
@@ -170,7 +169,7 @@ plt.fill_between(np.arange(len(all_Jsa_500_errors[1])),
                  np.percentile(all_Jsa_500_errors, 25, axis=0),
                  alpha=0.3)
 
-# plt.ylim((0.5*10**-3, 10**3))
+# plt.ylim((0.5*10**-7, 10**3))
 plt.grid()
 plt.legend(fontsize=14)
 plt.xlabel('Number of Iterations', fontsize=14)
@@ -180,21 +179,21 @@ plt.yticks(fontsize=14)
 
 plt.subplot(1, 3, 3)
 
-plt.plot(np.median(all_Jdr_10_errors[:], axis=0), label='M=10')
+plt.plot(np.median(all_Jdr_10_errors, axis=0), label='M=10')
 # plot the 25-75% quantile
 plt.fill_between(np.arange(len(all_Jdr_10_errors[1])),
                  np.percentile(all_Jdr_10_errors, 75, axis=0),
                  np.percentile(all_Jdr_10_errors, 25, axis=0),
                  alpha=0.3)
 
-plt.plot(np.median(all_Jdr_20_errors[:], axis=0), label='M=20')
+plt.plot(np.median(all_Jdr_20_errors, axis=0), label='M=20')
 # plot the 25-75% quantile
 plt.fill_between(np.arange(len(all_Jdr_20_errors[1])),
                  np.percentile(all_Jdr_20_errors, 75, axis=0),
                  np.percentile(all_Jdr_20_errors, 25, axis=0),
                  alpha=0.3)
 
-plt.plot(np.median(all_Jdr_500_errors[:], axis=0), label='M=500')
+plt.plot(np.median(all_Jdr_500_errors, axis=0), label='M=500')
 # plot the 25-75% quantile
 plt.fill_between(np.arange(len(all_Jdr_500_errors[1])),
                  np.percentile(all_Jdr_500_errors, 75, axis=0),
@@ -202,7 +201,7 @@ plt.fill_between(np.arange(len(all_Jdr_500_errors[1])),
                  alpha=0.3)
 
 
-plt.ylim((7800, 8200))
+plt.ylim((7800, 10000))
 plt.grid()
 plt.legend(fontsize=14)
 plt.xlabel('Number of Iterations', fontsize=14)
@@ -211,5 +210,5 @@ plt.xticks(fontsize=14)
 plt.yticks(fontsize=14)
 
 plt.tight_layout()
-plt.savefig('stabilization_results_1-100.png', dpi=300)
+plt.savefig(f'stabilization_results_risk_{len(all_Ks_10)}.png', dpi=300)
 plt.show()
