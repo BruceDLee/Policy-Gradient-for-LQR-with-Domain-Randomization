@@ -48,10 +48,6 @@ Sigma_w = jnp.eye(dx)
 def spec_rad(As):
   return jnp.max(jnp.abs(jnp.linalg.eigvals(As)), axis=-1)
 
-# this might be unstable
-def dlyap_scipy(A, Q):
-  return la.solve_discrete_lyapunov(A, Q)
-
 @jit
 def dlyap_direct(A, Q):
     def true_fn(_):
@@ -66,8 +62,6 @@ def dlyap_direct(A, Q):
     eigvals_product = jnp.max(jnp.abs(jnp.linalg.eigvals(A)))
     x = jax.lax.cond(eigvals_product < 1, true_fn, false_fn, None)
     return x
-    # result_shape = jax.ShapeDtypeStruct(Q.shape, Q.dtype)
-    # return jax.pure_callback(dlyap_scipy, result_shape, A, Q)
 
 def cost(K, As, Bs):
   ABK = As + jnp.einsum('...ij, jk -> ...ik', Bs, K)
@@ -90,13 +84,6 @@ def cost(K, As, Bs):
     
   costs = vmap(compute_cost_fn, (0, 0))(As, Bs)
   return jnp.mean(costs)
-
-def avg_cost(K, As, Bs):
-  avg_control_cost = 0
-  for A, B in zip(As, Bs):
-    avg_control_cost += cost(K, A, B)/len(As)
-
-  return avg_control_cost
 
 def grad(K, As, Bs):
     def single_grad(A, B):
