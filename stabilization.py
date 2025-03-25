@@ -150,7 +150,7 @@ all_samples_Ks = []
 all_samples_SA_cost = []
 all_samples_DR_cost = []
 
-for i, n_samples in enumerate([10, 20,50]):
+for i, n_samples in enumerate([10, 20, 50]):
   all_Ks = []
   all_SA_cost = []
   all_DR_cost = []
