@@ -1,0 +1,3 @@
+[submodule "quanser-openai-driver"]
+	path = quanser-openai-driver
+	url = https://github.com/Tesshuuuu/quanser-openai-driver.git
