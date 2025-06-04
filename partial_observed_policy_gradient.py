@@ -73,10 +73,11 @@ grad_cost = jax.jit(jax.grad(cost))
 alpha = 0.05
 n_iterations = 50
 
-params = [0.8 * A_K_opt, 0.8 * B_K_opt, 0.8 * C_K_opt]
+params = [A_K_opt, B_K_opt, C_K_opt]
 
 cost_history = []
 for _ in range(n_iterations):
+    breakpoint()
     c = cost(params)
     cost_history.append(float(c))
     grads = grad_cost(params)
@@ -93,6 +94,7 @@ if HAVE_PLT:
     plt.legend()
     plt.tight_layout()
     plt.show()
+    plt.savefig('po_pg')
 else:
     print("matplotlib not available, skipping plot")
     print("Final cost:", cost_history[-1])
