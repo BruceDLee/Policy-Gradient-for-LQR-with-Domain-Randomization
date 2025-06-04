@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.linalg as la
 
 # True system matrices (from partial_observed_policy_gradient)
 A_true = np.array([[1., 1.], [0., 1.]])
@@ -38,13 +39,13 @@ def kalman_smoother(A, B, C, us, ys):
     x_filt = np.zeros((n, T))
     P_filt = np.zeros((n, n, T))
     for t in range(T):
-        y_t = ys[:, t:t+1]
-        u_t = us[:, t:t+1]
+        y_t = ys[:, t:t + 1]
+        u_t = us[:, t:t + 1]
         S = C @ P_pred @ C.T + np.array(Sigma_v)
         K = P_pred @ C.T @ np.linalg.inv(S)
         x_upd = x_pred + K @ (y_t - C @ x_pred)
         P_upd = (np.eye(n) - K @ C) @ P_pred
-        x_filt[:, t:t+1] = x_upd
+        x_filt[:, t:t + 1] = x_upd
         P_filt[:, :, t] = P_upd
         x_pred = A @ x_upd + B @ u_t
         P_pred = A @ P_upd @ A.T + np.array(Sigma_w)
@@ -54,28 +55,67 @@ def kalman_smoother(A, B, C, us, ys):
     for t in range(T - 2, -1, -1):
         P_pred = A @ P_filt[:, :, t] @ A.T + np.array(Sigma_w)
         J = P_filt[:, :, t] @ A.T @ np.linalg.inv(P_pred)
-        x_smooth[:, t:t+1] = x_filt[:, t:t+1] + J @ (x_smooth[:, t+1:t+2] - (A @ x_filt[:, t:t+1] + B @ us[:, t+1:t+2]))
+        x_smooth[:, t:t + 1] = x_filt[:, t:t + 1] + J @ (
+            x_smooth[:, t + 1:t + 2] - (A @ x_filt[:, t:t + 1] + B @ us[:, t + 1:t + 2]))
     return x_smooth
 
 
-def identify_system(us, ys, n_iter=10, rng=None):
-    """Estimate (A, B, C) via an EM-like procedure."""
-    if rng is None:
-        rng = np.random.default_rng()
-    A_est = np.eye(2) + 0.1 * rng.standard_normal((2, 2))
-    B_est = 0.1 * rng.standard_normal((2, 1))
-    C_est = rng.standard_normal((1, 2))
+def fit_arx(us, ys, order=2):
+    """Fit a simple ARX model of the given order."""
+    p = order
+    T = us.shape[1]
+    Phi = []
+    y_target = []
+    for t in range(p, T):
+        row = []
+        for i in range(1, p + 1):
+            row.append(ys[:, t - i])
+        for i in range(p):
+            row.append(us[:, t - i])
+        Phi.append(np.hstack(row))
+        y_target.append(ys[:, t])
+    Phi = np.vstack(Phi)
+    y_target = np.vstack(y_target)
+    coeffs, _, _, _ = np.linalg.lstsq(Phi, y_target, rcond=None)
+    a = coeffs[:p].reshape(-1)
+    b = coeffs[p:].reshape(-1)
+    return a, b
 
-    for _ in range(n_iter):
-        x_smooth = kalman_smoother(A_est, B_est, C_est, us, ys)
-        X = x_smooth[:, :-1]
-        U = us[:, :-1]
-        X_next = x_smooth[:, 1:]
-        AB = X_next @ np.linalg.pinv(np.vstack((X, U)))
-        A_est = AB[:, :2]
-        B_est = AB[:, 2:].reshape(2, 1)
-        C_est = ys @ np.linalg.pinv(x_smooth)
-    return A_est, B_est, C_est
+
+def impulse_response(a, b, n_steps):
+    """Compute impulse response coefficients for the ARX model."""
+    p = len(a)
+    r = len(b)
+    g = np.zeros(n_steps)
+    for t in range(n_steps):
+        val = b[t] if t < r else 0.0
+        for i in range(1, p + 1):
+            if t - i >= 0:
+                val += a[i - 1] * g[t - i]
+        g[t] = val
+    return g
+
+
+def ho_kalman(markov, n):
+    """Return (A, B, C) from Markov parameters via Ho-Kalman."""
+    H0 = la.hankel(markov[1:n + 1], markov[n:2 * n])
+    H1 = la.hankel(markov[2:n + 2], markov[n + 1:2 * n + 1])
+    U, S, Vh = np.linalg.svd(H0, full_matrices=False)
+    S_sqrt = np.diag(np.sqrt(S[:n]))
+    U1 = U[:, :n] @ S_sqrt
+    V1 = S_sqrt @ Vh[:n, :]
+    A = np.linalg.pinv(U1) @ H1 @ np.linalg.pinv(V1)
+    B = V1[:, :1]
+    C = U1[:1, :]
+    return A, B, C
+
+
+def identify_system(us, ys, n_iter=10, rng=None, order=2):
+    """Identify (A, B, C) using an ARX model and Ho-Kalman realization."""
+    a, b = fit_arx(us, ys, order=order)
+    markov = impulse_response(a, b, 2 * order + 1)
+    A_est, B_est, C_est = ho_kalman(markov, order)
+    return A_est, B_est.reshape(-1, 1), C_est.reshape(1, -1)
 
 
 def one_step_prediction_error(A_est, B_est, C_est, us, ys):
