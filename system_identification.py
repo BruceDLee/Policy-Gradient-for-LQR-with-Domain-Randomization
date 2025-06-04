@@ -1,12 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.linalg as la
 
 # True system matrices (from partial_observed_policy_gradient)
 A_true = np.array([[1., 1.], [0., 1.]])
 B_true = np.array([[0.], [1.]])
 C_true = np.array([[1., 0.]])
-Sigma_w = np.eye(2)
-Sigma_v = np.array([[1.]])
+Sigma_w = 0.5*np.eye(2)
+Sigma_v = 0.5*np.array([[1.]])
 
 
 def collect_data(n_steps, rng=None):
@@ -18,8 +19,8 @@ def collect_data(n_steps, rng=None):
     ys = []
     for _ in range(n_steps):
         u = rng.standard_normal((1, 1))
-        w = rng.standard_normal((2, 1))
-        v = rng.standard_normal((1, 1))
+        w = la.sqrtm(Sigma_w)@rng.standard_normal((2, 1))
+        v = la.sqrtm(Sigma_v)@rng.standard_normal((1, 1))
         y = C_true @ x + v
         us.append(u)
         ys.append(np.array(y))
@@ -58,13 +59,13 @@ def kalman_smoother(A, B, C, us, ys):
     return x_smooth
 
 
-def identify_system(us, ys, n_iter=10, rng=None):
+def identify_system(us, ys, n_iter=100, rng=None):
     """Estimate (A, B, C) via an EM-like procedure."""
     if rng is None:
         rng = np.random.default_rng()
-    A_est = np.eye(2) + 0.1 * rng.standard_normal((2, 2))
-    B_est = 0.1 * rng.standard_normal((2, 1))
-    C_est = rng.standard_normal((1, 2))
+    A_est = A_true + 0.1 * rng.standard_normal((2, 2))
+    B_est = B_true + 0.1 * rng.standard_normal((2, 1))
+    C_est = C_true + 0.1 * rng.standard_normal((1, 2))
 
     for _ in range(n_iter):
         x_smooth = kalman_smoother(A_est, B_est, C_est, us, ys)
@@ -78,8 +79,9 @@ def identify_system(us, ys, n_iter=10, rng=None):
     return A_est, B_est, C_est
 
 
-def one_step_prediction_error(A_est, B_est, C_est, us, ys):
+def one_step_prediction_error(A_est, B_est, C_est):
     """Return root mean squared prediction error for the given data."""
+    ys, us = collect_data(2000)
     n = A_est.shape[0]
     T = us.shape[1]
     x_pred = np.zeros((n, 1))
@@ -109,13 +111,13 @@ def run_experiment(sample_sizes, n_trials=5, rng=None):
         for _ in range(n_trials):
             us, ys = collect_data(N, rng)
             A_hat, B_hat, C_hat = identify_system(us, ys, rng=rng)
-            errors.append(one_step_prediction_error(A_hat, B_hat, C_hat, us, ys))
+            errors.append(one_step_prediction_error(A_hat, B_hat, C_hat))
         pred_err.append(np.mean(errors))
     return np.array(pred_err)
 
 
 def main():
-    sample_sizes = [20, 50, 100, 200, 500, 1000]
+    sample_sizes = [200, 500, 1000, 10000]
     pred_err = run_experiment(sample_sizes, n_trials=10)
 
     plt.figure(figsize=(6, 4))
@@ -127,7 +129,6 @@ def main():
     plt.tight_layout()
     plt.savefig('identification_errors.png')
     plt.show()
-
 
 if __name__ == '__main__':
     main()

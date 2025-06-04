@@ -99,12 +99,12 @@ grad_cost = jax.jit(jax.grad(cost))
 alpha = 1e-5
 n_iterations = 500
 
-params = [A_K_opt, B_K_opt, C_K_opt]
+params = [A_K_opt*0.9, B_K_opt*0.7, C_K_opt*0.8]
 
 print('cost of optimal controller:' )
 print(cost(params))
 print("Monte Carlo check for optimal controller:")
-mc_opt = cost_simulation([A_K_opt, B_K_opt, C_K_opt])
+mc_opt = cost_simulation(params)
 print(mc_opt)
 
 print('eigvals: ', la.eigvals(jnp.block([[A, B@params[2]],[params[1]@C, params[0]]])))
