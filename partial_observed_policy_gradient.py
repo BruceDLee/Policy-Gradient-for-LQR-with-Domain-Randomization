@@ -57,7 +57,7 @@ def dlyap(A_mat, Q_mat):
 
 @jax.jit
 def cost(params):
-    """Infinite-horizon cost for controller parameters."""
+    """Infinite-horizon cost for controller parameters via JAX Lyapunov."""
     A_K, B_K, C_K = params
     F = jnp.block([[A, B @ C_K],
                    [B_K @ C, A_K]])
@@ -68,6 +68,44 @@ def cost(params):
     Sigma_z = Sigma[2:, 2:]
     return jnp.trace(Q_cost @ Sigma_x) + jnp.trace(C_K @ Sigma_z @ C_K.T)
 
+
+def cost_scipy(params):
+    """Same cost computed with SciPy's Lyapunov solver for verification."""
+    A_K, B_K, C_K = [np.array(p) for p in params]
+    F = np.block([[A, B @ C_K],
+                  [B_K @ C, A_K]])
+    W = np.block([[Sigma_w, np.zeros((2, 2))],
+                  [np.zeros((2, 2)), B_K @ Sigma_v @ B_K.T]])
+    Sigma = la.solve_discrete_lyapunov(F, W)
+    Sigma_x = Sigma[:2, :2]
+    Sigma_z = Sigma[2:, 2:]
+    return float(np.trace(Q_cost @ Sigma_x) + np.trace(C_K @ Sigma_z @ C_K.T))
+
+
+def cost_simulation(params, n_steps=10000, burn_in=1000, rng=None):
+    """Monte Carlo estimate of the infinite-horizon cost."""
+    if rng is None:
+        rng = np.random.default_rng()
+    A_K, B_K, C_K = [np.array(p) for p in params]
+    A_np = np.array(A)
+    B_np = np.array(B)
+    C_np = np.array(C)
+    Q_np = np.array(Q_cost)
+    R_np = np.array(R_cost)
+    x = np.zeros((2, 1))
+    z = np.zeros((2, 1))
+    cost_sum = 0.0
+    for t in range(n_steps + burn_in):
+        u = C_K @ z
+        w = rng.standard_normal((2, 1))
+        v = rng.standard_normal((1, 1))
+        if t >= burn_in:
+            cost_sum += float((x.T @ Q_np @ x + u.T @ R_np @ u))
+        y = C_np @ x + v
+        x = A_np @ x + B_np @ u + w
+        z = A_K @ z + B_K @ y
+    return cost_sum / n_steps
+
 grad_cost = jax.jit(jax.grad(cost))
 
 alpha = 0.05
@@ -76,17 +114,20 @@ n_iterations = 50
 params = [0.8 * A_K_opt, 0.8 * B_K_opt, 0.8 * C_K_opt]
 
 cost_history = []
+cost_history_scipy = []
 for _ in range(n_iterations):
     c = cost(params)
     cost_history.append(float(c))
+    cost_history_scipy.append(cost_scipy(params))
     grads = grad_cost(params)
     params = [p - alpha * g for p, g in zip(params, grads)]
 
 cost_history.append(float(cost(params)))
+cost_history_scipy.append(cost_scipy(params))
 cost_opt = float(cost([A_K_opt, B_K_opt, C_K_opt]))
 
 if HAVE_PLT:
-    plt.plot(cost_history, label="learned controller")
+    plt.plot(cost_history, label="learned controller (jax)")
     plt.plot([cost_opt] * len(cost_history), "--", label="optimal controller")
     plt.xlabel("Iteration")
     plt.ylabel("Cost")
@@ -96,3 +137,13 @@ if HAVE_PLT:
 else:
     print("matplotlib not available, skipping plot")
     print("Final cost:", cost_history[-1])
+
+print("Cost check (JAX vs SciPy) at final step:")
+print(cost_history[-1], cost_history_scipy[-1])
+opt_scipy = cost_scipy([A_K_opt, B_K_opt, C_K_opt])
+print("Optimal cost JAX vs SciPy:")
+print(cost_opt, opt_scipy)
+
+print("Monte Carlo check for optimal controller:")
+mc_opt = cost_simulation([A_K_opt, B_K_opt, C_K_opt])
+print(mc_opt)
