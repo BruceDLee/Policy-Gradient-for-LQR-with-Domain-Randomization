@@ -39,7 +39,8 @@ Sigma_v = jnp.array([[1.]])
 
 # Riccati solutions for the optimal LQG controller
 P_f = jnp.array(la.solve_discrete_are(A.T, C.T, Sigma_w, Sigma_v))
-L_opt = P_f @ C.T @ jnp.linalg.inv(C @ P_f @ C.T + Sigma_v)
+# Kalman gain for the predictor form (one-step delay)
+L_opt = A @ P_f @ C.T @ jnp.linalg.inv(C @ P_f @ C.T + Sigma_v)
 P = jnp.array(la.solve_discrete_are(A, B, Q_cost, R_cost))
 K_lqr = -jnp.linalg.inv(B.T @ P @ B + R_cost) @ (B.T @ P @ A)
 
