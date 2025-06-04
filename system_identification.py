@@ -10,21 +10,45 @@ Sigma_w = 0.25*np.eye(2)
 Sigma_v = 0.25*np.array([[1.]])
 
 
-def collect_data(n_steps, rng=None):
-    """Simulate the partially observed system and return (u, y)."""
+def lqg_controller(A, B, C):
+    """Return a stabilizing LQG feedback gain K and observer gain L."""
+    Q = np.eye(A.shape[0])
+    R = np.eye(B.shape[1])
+    P_f = la.solve_discrete_are(A.T, C.T, Sigma_w, Sigma_v)
+    L = A @ P_f @ C.T @ np.linalg.inv(C @ P_f @ C.T + Sigma_v)
+    P = la.solve_discrete_are(A, B, Q, R)
+    K = -np.linalg.inv(B.T @ P @ B + R) @ (B.T @ P @ A)
+    return K, L
+
+
+def collect_data(n_steps, rng=None, closed_loop=False):
+    """Simulate the system and return (u, y)."""
     if rng is None:
         rng = np.random.default_rng()
+
+    if closed_loop:
+        K, L = lqg_controller(A_true, B_true, C_true)
+        x_hat = np.zeros((2, 1))
+
     x = np.zeros((2, 1))
     us = []
     ys = []
     for _ in range(n_steps):
-        u = rng.standard_normal((1, 1))
-        w = la.sqrtm(Sigma_w)@rng.standard_normal((2, 1))
-        v = la.sqrtm(Sigma_v)@rng.standard_normal((1, 1))
+        if closed_loop:
+            u = K @ x_hat
+        else:
+            u = rng.standard_normal((1, 1))
+
+        w = la.sqrtm(Sigma_w) @ rng.standard_normal((2, 1))
+        v = la.sqrtm(Sigma_v) @ rng.standard_normal((1, 1))
         y = C_true @ x + v
         us.append(u)
         ys.append(np.array(y))
         x = A_true @ x + B_true @ u + w
+
+        if closed_loop:
+            x_hat = A_true @ x_hat + B_true @ u + L @ (y - C_true @ x_hat)
+
     return np.hstack(us), np.hstack(ys)
 
 
@@ -173,7 +197,7 @@ def run_experiment(sample_sizes, n_trials=5, rng=None):
     for N in sample_sizes:
         errors = []
         for _ in range(n_trials):
-            us, ys = collect_data(N, rng)
+            us, ys = collect_data(N, rng, closed_loop=True)
             A_hat, B_hat, C_hat = identify_system(us, ys, rng=rng)
             errors.append(one_step_prediction_error(A_hat, B_hat, C_hat))
         pred_err.append(np.mean(errors))
