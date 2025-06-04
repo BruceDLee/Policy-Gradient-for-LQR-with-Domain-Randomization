@@ -66,8 +66,9 @@ def run_experiment(sample_sizes, n_trials=5, rng=None):
 
 
 def main():
-    sample_sizes = [20, 50, 100, 200, 500, 1000]
+    sample_sizes = [1000, 2000, 3000, 4000, 5000]
     excess = run_experiment(sample_sizes, n_trials=10)
+    print(excess)
     plt.figure(figsize=(6, 4))
     plt.plot(sample_sizes, excess, 'o-')
     plt.xscale('log')
