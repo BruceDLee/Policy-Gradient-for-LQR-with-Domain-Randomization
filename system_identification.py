@@ -91,25 +91,56 @@ def impulse_response(a, b, n_steps):
         g[t] = val
     return g
 
-def ho_kalman(markov, n):
-    """Return (A, B, C) from Markov parameters via Ho-Kalman."""
-    H0 = la.hankel(markov[1:n + 1], markov[n:2 * n])
-    H1 = la.hankel(markov[2:n + 2], markov[n + 1:2 * n + 1])
-    U, S, Vh = np.linalg.svd(H0, full_matrices=False)
-    S_sqrt = np.diag(np.sqrt(S[:n]))
-    U1 = U[:, :n] @ S_sqrt
-    V1 = S_sqrt @ Vh[:n, :]
-    A = np.linalg.pinv(U1) @ H1 @ np.linalg.pinv(V1)
-    B = V1[:, :1]
-    C = U1[:1, :]
-    return A, B, C
+def block_hankel(data, rows, cols):
+    """Return a block Hankel matrix with the given rows and cols."""
+    d, T = data.shape
+    H = np.zeros((d * rows, cols))
+    for i in range(rows):
+        H[i * d:(i + 1) * d, :] = data[:, i:i + cols]
+    return H
+
+
+def n4sid(us, ys, order=2, blocks=10):
+    """Subspace identification of a state-space model via N4SID."""
+    m, T = us.shape
+    p = ys.shape[0]
+    if 2 * blocks >= T:
+        raise ValueError("Insufficient data for the chosen block size")
+
+    N = T - 2 * blocks + 1
+
+    Up = block_hankel(us[:, :T - blocks], blocks, N)
+    Uf = block_hankel(us[:, blocks:], blocks, N)
+    Yp = block_hankel(ys[:, :T - blocks], blocks, N)
+    Yf = block_hankel(ys[:, blocks:], blocks, N)
+
+    W = np.vstack([Up, Yp])
+    P = W.T @ np.linalg.pinv(W @ W.T) @ W
+    Yf_tilde = Yf @ (np.eye(N) - P)
+
+    U, S, Vh = np.linalg.svd(Yf_tilde, full_matrices=False)
+    U1 = U[:, :order]
+    S1_sqrt = np.diag(np.sqrt(S[:order]))
+    Gamma = U1 @ S1_sqrt
+    X = S1_sqrt @ Vh[:order, :]
+
+    C_est = Gamma[:p, :]
+    A_est = np.linalg.pinv(Gamma[:-p, :]) @ Gamma[p:, :]
+
+    X_prev = X[:, :-1]
+    X_next = X[:, 1:]
+    U_reg = us[:, 2 * blocks - 1:T - 1]
+    Phi = np.vstack([X_prev, U_reg])
+    target = X_next
+    Theta = target @ np.linalg.pinv(Phi)
+    B_est = Theta[:, order:]
+
+    return A_est, B_est, C_est
 
 def identify_system(us, ys, n_iter=10, rng=None, order=2):
-    """Identify (A, B, C) using an ARX model and Ho-Kalman realization."""
-    arx_order = 20
-    a, b = fit_arx(us, ys, order=arx_order)
-    markov = impulse_response(a, b, 2 * arx_order + 1)
-    A_est, B_est, C_est = ho_kalman(markov, order)
+    """Identify (A, B, C) using a subspace (N4SID) method."""
+    block_size = 20
+    A_est, B_est, C_est = n4sid(us, ys, order=order, blocks=block_size)
     return A_est, B_est.reshape(-1, 1), C_est.reshape(1, -1)
 
 
