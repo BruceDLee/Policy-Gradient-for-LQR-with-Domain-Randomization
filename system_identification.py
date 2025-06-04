@@ -39,13 +39,13 @@ def kalman_smoother(A, B, C, us, ys):
     x_filt = np.zeros((n, T))
     P_filt = np.zeros((n, n, T))
     for t in range(T):
-        y_t = ys[:, t:t+1]
-        u_t = us[:, t:t+1]
+        y_t = ys[:, t:t + 1]
+        u_t = us[:, t:t + 1]
         S = C @ P_pred @ C.T + np.array(Sigma_v)
         K = P_pred @ C.T @ np.linalg.inv(S)
         x_upd = x_pred + K @ (y_t - C @ x_pred)
         P_upd = (np.eye(n) - K @ C) @ P_pred
-        x_filt[:, t:t+1] = x_upd
+        x_filt[:, t:t + 1] = x_upd
         P_filt[:, :, t] = P_upd
         x_pred = A @ x_upd + B @ u_t
         P_pred = A @ P_upd @ A.T + np.array(Sigma_w)
@@ -55,17 +55,18 @@ def kalman_smoother(A, B, C, us, ys):
     for t in range(T - 2, -1, -1):
         P_pred = A @ P_filt[:, :, t] @ A.T + np.array(Sigma_w)
         J = P_filt[:, :, t] @ A.T @ np.linalg.inv(P_pred)
-        x_smooth[:, t:t+1] = x_filt[:, t:t+1] + J @ (x_smooth[:, t+1:t+2] - (A @ x_filt[:, t:t+1] + B @ us[:, t+1:t+2]))
+        x_smooth[:, t:t + 1] = x_filt[:, t:t + 1] + J @ (
+            x_smooth[:, t + 1:t + 2] - (A @ x_filt[:, t:t + 1] + B @ us[:, t + 1:t + 2]))
     return x_smooth
 
 
-def identify_system(us, ys, n_iter=100, rng=None):
+def identify_system(us, ys, n_iter=10, rng=None):
     """Estimate (A, B, C) via an EM-like procedure."""
     if rng is None:
         rng = np.random.default_rng()
-    A_est = A_true + 0.1 * rng.standard_normal((2, 2))
-    B_est = B_true + 0.1 * rng.standard_normal((2, 1))
-    C_est = C_true + 0.1 * rng.standard_normal((1, 2))
+    A_est = np.eye(2) + 0.1 * rng.standard_normal((2, 2))
+    B_est = 0.1 * rng.standard_normal((2, 1))
+    C_est = rng.standard_normal((1, 2))
 
     for _ in range(n_iter):
         x_smooth = kalman_smoother(A_est, B_est, C_est, us, ys)
