@@ -78,42 +78,52 @@ def identify_system(us, ys, n_iter=10, rng=None):
     return A_est, B_est, C_est
 
 
+def one_step_prediction_error(A_est, B_est, C_est, us, ys):
+    """Return root mean squared prediction error for the given data."""
+    n = A_est.shape[0]
+    T = us.shape[1]
+    x_pred = np.zeros((n, 1))
+    P_pred = np.eye(n)
+    err = 0.0
+    for t in range(T):
+        y_t = ys[:, t:t + 1]
+        y_pred = C_est @ x_pred
+        err += np.sum((y_t - y_pred) ** 2)
+        S = C_est @ P_pred @ C_est.T + np.array(Sigma_v)
+        K = P_pred @ C_est.T @ np.linalg.inv(S)
+        x_upd = x_pred + K @ (y_t - y_pred)
+        P_upd = (np.eye(n) - K @ C_est) @ P_pred
+        if t < T - 1:
+            u_t = us[:, t:t + 1]
+            x_pred = A_est @ x_upd + B_est @ u_t
+            P_pred = A_est @ P_upd @ A_est.T + np.array(Sigma_w)
+    return np.sqrt(err / T)
+
+
 def run_experiment(sample_sizes, n_trials=5, rng=None):
     if rng is None:
         rng = np.random.default_rng()
-    err_A = []
-    err_B = []
-    err_C = []
+    pred_err = []
     for N in sample_sizes:
-        eA = []
-        eB = []
-        eC = []
+        errors = []
         for _ in range(n_trials):
             us, ys = collect_data(N, rng)
             A_hat, B_hat, C_hat = identify_system(us, ys, rng=rng)
-            eA.append(np.linalg.norm(A_hat - np.array(A_true)))
-            eB.append(np.linalg.norm(B_hat - np.array(B_true)))
-            eC.append(np.linalg.norm(C_hat - np.array(C_true)))
-        err_A.append(np.mean(eA))
-        err_B.append(np.mean(eB))
-        err_C.append(np.mean(eC))
-    return np.array(err_A), np.array(err_B), np.array(err_C)
+            errors.append(one_step_prediction_error(A_hat, B_hat, C_hat, us, ys))
+        pred_err.append(np.mean(errors))
+    return np.array(pred_err)
 
 
 def main():
     sample_sizes = [20, 50, 100, 200, 500, 1000]
-    err_A, err_B, err_C = run_experiment(sample_sizes, n_trials=10)
+    pred_err = run_experiment(sample_sizes, n_trials=10)
 
     plt.figure(figsize=(6, 4))
-    plt.plot(sample_sizes, err_A, 'o-', label='$A$ error')
-    plt.plot(sample_sizes, err_B, 's-', label='$B$ error')
-    plt.plot(sample_sizes, err_C, 'd-', label='$C$ error')
+    plt.plot(sample_sizes, pred_err, 'o-')
     plt.xscale('log')
-    plt.yscale('log')
     plt.xlabel('Number of data points')
-    plt.ylabel('Frobenius error')
+    plt.ylabel('One step prediction RMSE')
     plt.grid(True, which='both')
-    plt.legend()
     plt.tight_layout()
     plt.savefig('identification_errors.png')
     plt.show()
@@ -121,3 +131,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
