@@ -6,8 +6,8 @@ import scipy.linalg as la
 A_true = np.array([[1., 1.], [0., 1.]])
 B_true = np.array([[0.], [1.]])
 C_true = np.array([[1., 0.]])
-Sigma_w = 0.25*np.eye(2)
-Sigma_v = 0.25*np.array([[1.]])
+Sigma_w = np.eye(2)
+Sigma_v = np.array([[1.]])
 
 
 def lqg_controller(A, B, C):
@@ -163,14 +163,14 @@ def n4sid(us, ys, order=2, blocks=10):
 
 def identify_system(us, ys, n_iter=10, rng=None, order=2):
     """Identify (A, B, C) using a subspace (N4SID) method."""
-    block_size = 40
+    block_size = 10
     A_est, B_est, C_est = n4sid(us, ys, order=order, blocks=block_size)
     return A_est, B_est.reshape(-1, 1), C_est.reshape(1, -1)
 
 
-def one_step_prediction_error(A_est, B_est, C_est):
+def one_step_prediction_error(A_est, B_est, C_est, rng):
     """Return root mean squared prediction error for the given data."""
-    ys, us = collect_data(5000)
+    ys, us = collect_data(50000, rng, closed_loop=True)
     n = A_est.shape[0]
     T = us.shape[1]
     x_pred = np.zeros((n, 1))
@@ -199,15 +199,18 @@ def run_experiment(sample_sizes, n_trials=5, rng=None):
         for _ in range(n_trials):
             us, ys = collect_data(N, rng, closed_loop=True)
             A_hat, B_hat, C_hat = identify_system(us, ys, rng=rng)
-            errors.append(one_step_prediction_error(A_hat, B_hat, C_hat))
+            errors.append(one_step_prediction_error(A_hat, B_hat, C_hat, rng))
         pred_err.append(np.mean(errors))
     return np.array(pred_err)
 
 
 def main():
-    sample_sizes = [500, 1000, 2000, 3000, 4000, 5000]
-    pred_err = run_experiment(sample_sizes, n_trials=20)
+    print('best error: ', one_step_prediction_error(A_true, B_true, C_true, np.random.default_rng()))
 
+    sample_sizes = [40, 80, 160, 320, 640, 1280]
+    pred_err = run_experiment(sample_sizes, n_trials=50)
+
+    
     plt.figure(figsize=(6, 4))
     plt.plot(sample_sizes, pred_err, 'o-')
     # plt.xscale('log')
