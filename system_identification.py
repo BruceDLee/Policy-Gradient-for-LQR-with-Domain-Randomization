@@ -35,7 +35,7 @@ def collect_data(n_steps, rng=None, closed_loop=False):
     ys = []
     for _ in range(n_steps):
         if closed_loop:
-            u = K @ x_hat
+            u = K @ x_hat + rng.standard_normal((1, 1))
         else:
             u = rng.standard_normal((1, 1))
 
@@ -163,7 +163,7 @@ def n4sid(us, ys, order=2, blocks=10):
 
 def identify_system(us, ys, n_iter=10, rng=None, order=2):
     """Identify (A, B, C) using a subspace (N4SID) method."""
-    block_size = 10
+    block_size = 50
     A_est, B_est, C_est = n4sid(us, ys, order=order, blocks=block_size)
     return A_est, B_est.reshape(-1, 1), C_est.reshape(1, -1)
 
@@ -207,7 +207,7 @@ def run_experiment(sample_sizes, n_trials=5, rng=None):
 def main():
     print('best error: ', one_step_prediction_error(A_true, B_true, C_true, np.random.default_rng()))
 
-    sample_sizes = [40, 80, 160, 320, 640, 1280]
+    sample_sizes = [2500, 5000, 10000, 20000]
     pred_err = run_experiment(sample_sizes, n_trials=50)
 
     

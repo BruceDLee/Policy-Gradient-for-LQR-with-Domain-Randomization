@@ -35,6 +35,8 @@ def lqg_cost(A, B, C, A_K, B_K, C_K):
     F = np.block([[A, B @ C_K], [B_K @ C, A_K]])
     W = np.block([[Sigma_w, np.zeros((2, 2))],
                   [np.zeros((2, 2)), B_K @ Sigma_v @ B_K.T]])
+    
+    print(la.eigvals(F))
     if np.max(np.abs(np.linalg.eigvals(F))) >= 1:
         return np.inf
     Sigma = la.solve_discrete_lyapunov(F, W)
@@ -47,7 +49,7 @@ def lqg_cost(A, B, C, A_K, B_K, C_K):
 A_K_opt, B_K_opt, C_K_opt = lqg_controller(A_true, B_true, C_true)
 OPTIMAL_COST = lqg_cost(A_true, B_true, C_true, A_K_opt, B_K_opt, C_K_opt)
 
-
+print(OPTIMAL_COST)
 def run_experiment(sample_sizes, n_trials=5, rng=None):
     if rng is None:
         rng = np.random.default_rng()
@@ -55,8 +57,9 @@ def run_experiment(sample_sizes, n_trials=5, rng=None):
     for N in sample_sizes:
         trial_costs = []
         for _ in range(n_trials):
-            us, ys = collect_data(N, rng)
+            us, ys = collect_data(N, rng, closed_loop=True)
             A_hat, B_hat, C_hat = identify_system(us, ys, rng=rng)
+            breakpoint()
             A_K_hat, B_K_hat, C_K_hat = lqg_controller(A_hat, B_hat, C_hat)
             cost_hat = lqg_cost(A_true, B_true, C_true,
                                 A_K_hat, B_K_hat, C_K_hat)
