@@ -170,7 +170,7 @@ def identify_system(us, ys, n_iter=10, rng=None, order=2):
 
 def one_step_prediction_error(A_est, B_est, C_est, rng):
     """Return root mean squared prediction error for the given data."""
-    ys, us = collect_data(50000, rng, closed_loop=True)
+    us, ys = collect_data(50000, rng, closed_loop=True)
     n = A_est.shape[0]
     T = us.shape[1]
     x_pred = np.zeros((n, 1))
