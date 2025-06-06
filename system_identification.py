@@ -52,34 +52,34 @@ def collect_data(n_steps, rng=None, closed_loop=False):
     return np.hstack(us), np.hstack(ys)
 
 
-def kalman_smoother(A, B, C, us, ys):
-    """Return smoothed state estimates for a linear system."""
-    n = A.shape[0]
-    T = us.shape[1]
-    x_pred = np.zeros((n, 1))
-    P_pred = np.eye(n)
-    x_filt = np.zeros((n, T))
-    P_filt = np.zeros((n, n, T))
-    for t in range(T):
-        y_t = ys[:, t:t + 1]
-        u_t = us[:, t:t + 1]
-        S = C @ P_pred @ C.T + np.array(Sigma_v)
-        K = P_pred @ C.T @ np.linalg.inv(S)
-        x_upd = x_pred + K @ (y_t - C @ x_pred)
-        P_upd = (np.eye(n) - K @ C) @ P_pred
-        x_filt[:, t:t + 1] = x_upd
-        P_filt[:, :, t] = P_upd
-        x_pred = A @ x_upd + B @ u_t
-        P_pred = A @ P_upd @ A.T + np.array(Sigma_w)
+# def kalman_smoother(A, B, C, us, ys):
+#     """Return smoothed state estimates for a linear system."""
+#     n = A.shape[0]
+#     T = us.shape[1]
+#     x_pred = np.zeros((n, 1))
+#     P_pred = np.eye(n)
+#     x_filt = np.zeros((n, T))
+#     P_filt = np.zeros((n, n, T))
+#     for t in range(T):
+#         y_t = ys[:, t:t + 1]
+#         u_t = us[:, t:t + 1]
+#         S = C @ P_pred @ C.T + np.array(Sigma_v)
+#         K = P_pred @ C.T @ np.linalg.inv(S)
+#         x_upd = x_pred + K @ (y_t - C @ x_pred)
+#         P_upd = (np.eye(n) - K @ C) @ P_pred
+#         x_filt[:, t:t + 1] = x_upd
+#         P_filt[:, :, t] = P_upd
+#         x_pred = A @ x_upd + B @ u_t
+#         P_pred = A @ P_upd @ A.T + np.array(Sigma_w)
 
-    x_smooth = np.zeros_like(x_filt)
-    x_smooth[:, -1:] = x_filt[:, -1:]
-    for t in range(T - 2, -1, -1):
-        P_pred = A @ P_filt[:, :, t] @ A.T + np.array(Sigma_w)
-        J = P_filt[:, :, t] @ A.T @ np.linalg.inv(P_pred)
-        x_smooth[:, t:t + 1] = x_filt[:, t:t + 1] + J @ (
-            x_smooth[:, t + 1:t + 2] - (A @ x_filt[:, t:t + 1] + B @ us[:, t + 1:t + 2]))
-    return x_smooth
+#     x_smooth = np.zeros_like(x_filt)
+#     x_smooth[:, -1:] = x_filt[:, -1:]
+#     for t in range(T - 2, -1, -1):
+#         P_pred = A @ P_filt[:, :, t] @ A.T + np.array(Sigma_w)
+#         J = P_filt[:, :, t] @ A.T @ np.linalg.inv(P_pred)
+#         x_smooth[:, t:t + 1] = x_filt[:, t:t + 1] + J @ (
+#             x_smooth[:, t + 1:t + 2] - (A @ x_filt[:, t:t + 1] + B @ us[:, t + 1:t + 2]))
+#     return x_smooth
 
 def fit_arx(us, ys, order=2):
     """Fit a simple ARX model of the given order."""
@@ -102,18 +102,18 @@ def fit_arx(us, ys, order=2):
     b = coeffs[p:].reshape(-1)
     return a, b
 
-def impulse_response(a, b, n_steps):
-    """Compute impulse response coefficients for the ARX model."""
-    p = len(a)
-    r = len(b)
-    g = np.zeros(n_steps)
-    for t in range(n_steps):
-        val = b[t] if t < r else 0.0
-        for i in range(1, p + 1):
-            if t - i >= 0:
-                val += a[i - 1] * g[t - i]
-        g[t] = val
-    return g
+# def impulse_response(a, b, n_steps):
+#     """Compute impulse response coefficients for the ARX model."""
+#     p = len(a)
+#     r = len(b)
+#     g = np.zeros(n_steps)
+#     for t in range(n_steps):
+#         val = b[t] if t < r else 0.0
+#         for i in range(1, p + 1):
+#             if t - i >= 0:
+#                 val += a[i - 1] * g[t - i]
+#         g[t] = val
+#     return g
 
 def block_hankel(data, rows, cols):
     """Return a block Hankel matrix with the given rows and cols."""
@@ -124,8 +124,8 @@ def block_hankel(data, rows, cols):
     return H
 
 
-def n4sid(us, ys, order=2, blocks=10):
-    """Subspace identification of a state-space model via N4SID."""
+def autoregressive_identification(us, ys, order=2, blocks=10):
+    """Subspace identification of a state-space model via autoregressive_identification."""
     m, T = us.shape
     p = ys.shape[0]
     if 2 * blocks >= T:
@@ -133,38 +133,30 @@ def n4sid(us, ys, order=2, blocks=10):
 
     N = T - 2 * blocks + 1
 
+    
     Up = block_hankel(us[:, :T - blocks], blocks, N)
-    Uf = block_hankel(us[:, blocks:], blocks, N)
+    # Uf = block_hankel(us[:, blocks:], blocks, N)
     Yp = block_hankel(ys[:, :T - blocks], blocks, N)
-    Yf = block_hankel(ys[:, blocks:], blocks, N)
+    Yf = block_hankel(ys[:, blocks:], 1, N)
+
+    breakpoint()
 
     W = np.vstack([Up, Yp])
-    P = W.T @ np.linalg.pinv(W @ W.T) @ W
-    Yf_tilde = Yf @ (np.eye(N) - P)
+    G = Yf@W.T@la.inv(W@W.T)
 
-    U, S, Vh = np.linalg.svd(Yf_tilde, full_matrices=False)
-    U1 = U[:, :order]
-    S1_sqrt = np.diag(np.sqrt(S[:order]))
-    Gamma = U1 @ S1_sqrt
-    X = S1_sqrt @ Vh[:order, :]
+    ### TODO! G consists of the Markov parameters for the observer system. 
+    # In particular, it maps u{t-1}, ... u_{t-block} y_{t-1} ... y_{t-block} to \hat y_{t+1}
+    # By forming the approxpriate Toeplitz matrix and taking the SVD, we should have what looks like
+    # an observablity controllability product. Then by truncating to "order" we should be able to immediately
+    # read off estimates for C, A, and B
 
-    C_est = Gamma[:p, :]
-    A_est = np.linalg.pinv(Gamma[:-p, :]) @ Gamma[p:, :]
-
-    X_prev = X[:, :-1]
-    X_next = X[:, 1:]
-    U_reg = us[:, blocks:T - blocks]
-    Phi = np.vstack([X_prev, U_reg])
-    target = X_next
-    Theta = target @ np.linalg.pinv(Phi)
-    B_est = Theta[:, order:]
 
     return A_est, B_est, C_est
 
 def identify_system(us, ys, n_iter=10, rng=None, order=2):
-    """Identify (A, B, C) using a subspace (N4SID) method."""
+    """Identify (A, B, C) using a subspace (autoregressive_identification) method."""
     block_size = 50
-    A_est, B_est, C_est = n4sid(us, ys, order=order, blocks=block_size)
+    A_est, B_est, C_est = autoregressive_identification(us, ys, order=order, blocks=block_size)
     return A_est, B_est.reshape(-1, 1), C_est.reshape(1, -1)
 
 
@@ -207,8 +199,8 @@ def run_experiment(sample_sizes, n_trials=5, rng=None):
 def main():
     print('best error: ', one_step_prediction_error(A_true, B_true, C_true, np.random.default_rng()))
 
-    sample_sizes = [2500, 5000, 10000, 20000]
-    pred_err = run_experiment(sample_sizes, n_trials=50)
+    sample_sizes = [500]
+    pred_err = run_experiment(sample_sizes, n_trials=10)
 
     
     plt.figure(figsize=(6, 4))
