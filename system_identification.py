@@ -153,7 +153,7 @@ def n4sid(us, ys, order=2, blocks=10):
 
     X_prev = X[:, :-1]
     X_next = X[:, 1:]
-    U_reg = us[:, 2 * blocks - 1:T - 1]
+    U_reg = us[:, blocks:T - blocks]
     Phi = np.vstack([X_prev, U_reg])
     target = X_next
     Theta = target @ np.linalg.pinv(Phi)
